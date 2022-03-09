@@ -13,6 +13,8 @@ let classCounter = 0;
 
 let funs = [];
 
+const whitespace = new RegExp('s');
+
 const sanitizeText = (txt) => common.sanitizeText(txt, configApi.getConfig());
 
 export const parseDirective = function (statement, context, type) {
@@ -51,6 +53,7 @@ export const addClass = function (id) {
     methods: [],
     members: [],
     annotations: [],
+    enums: [],
     domId: MERMAID_DOM_ID_PREFIX + classId.className + '-' + classCounter,
   };
 
@@ -147,9 +150,12 @@ export const addMember = function (className, member) {
       theClass.annotations.push(sanitizeText(memberString.substring(2, memberString.length - 2)));
     } else if (memberString.indexOf(')') > 0) {
       theClass.methods.push(sanitizeText(memberString));
-    } else if (memberString) {
+    } else if (memberString || whitespace.test(memberString)) {
       theClass.members.push(sanitizeText(memberString));
+      // } else if (memberString) {
+      //   theClass.enums.push(sanitizeText(memberString));
     }
+    theClass.enums.push(sanitizeText('HARDCODED'));
   }
 };
 

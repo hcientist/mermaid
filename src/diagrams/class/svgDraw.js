@@ -241,9 +241,38 @@ export const drawClass = function (elem, classDef, conf) {
   isFirst = true;
 
   classDef.methods.forEach(function (method) {
-    addTspan(methods, method, isFirst, conf);
+    addTspan(methods, method + 'METHOD', isFirst, conf);
     isFirst = false;
   });
+  isFirst = true;
+  classDef.enums.forEach(function (enumVal) {
+    addTspan(methods, enumVal, isFirst, conf);
+    isFirst = false;
+  });
+
+  let enumLine;
+  if (classDef.enums.length > 0) {
+    const updatedBBox = members.node().getBBox();
+    enumLine = g
+      .append('line') // text label for the x axis
+      .attr('x1', 0)
+      .attr('y1', conf.padding + titleHeight + conf.dividerMargin + updatedBBox.height)
+      .attr('y2', conf.padding + titleHeight + conf.dividerMargin + updatedBBox.height);
+
+    const enumValues = g
+      .append('text') // text label for the x axis
+      .attr('x', conf.padding)
+      .attr('y', titleHeight + 3 * conf.dividerMargin + updatedBBox.height + conf.textHeight)
+      .attr('fill', 'white')
+      .attr('class', 'classText');
+
+    isFirst = true;
+
+    classDef.enums.forEach(function (enumVal) {
+      addTspan(enumValues, enumVal, isFirst, conf);
+      isFirst = false;
+    });
+  }
 
   const classBox = g.node().getBBox();
   var cssClassStr = ' ';
@@ -274,6 +303,9 @@ export const drawClass = function (elem, classDef, conf) {
 
   membersLine.attr('x2', rectWidth);
   methodsLine.attr('x2', rectWidth);
+  if (classDef.enums.length > 0) {
+    enumLine.attr('x2', rectWidth);
+  }
 
   classInfo.width = rectWidth;
   classInfo.height = classBox.height + conf.padding + 0.5 * conf.dividerMargin;
@@ -282,16 +314,21 @@ export const drawClass = function (elem, classDef, conf) {
 };
 
 export const parseMember = function (text) {
-  const fieldRegEx = /^(\+|-|~|#)?(\w+)(~\w+~|\[\])?\s+(\w+) *(\*|\$)?$/;
-  const methodRegEx = /^([+|\-|~|#])?(\w+) *\( *(.*)\) *(\*|\$)? *(\w*[~|[\]]*\s*\w*~?)$/;
+  const fieldRegEx = /^(\+|-|~|#)?(\w+)(~\w+~|\[\])?\s+(\w+) *({[^}]+})?(\*|\$)?$/;
+  const methodRegEx =
+    /^([+|\-|~|#])?(\w+) *\( *(.*)\) *(\*|\$)? *(\w*[~|[\]]*\s*\w*~?) *({[^}]+})?$/;
+  const enumRegEx = /^([A-Z_\d]+)$/;
 
   let fieldMatch = text.match(fieldRegEx);
   let methodMatch = text.match(methodRegEx);
+  let enumMatch = text.match(enumRegEx);
 
-  if (fieldMatch && !methodMatch) {
+  if (fieldMatch && !methodMatch && !enumMatch) {
     return buildFieldDisplay(fieldMatch);
-  } else if (methodMatch) {
+  } else if (methodMatch && !enumMatch) {
     return buildMethodDisplay(methodMatch);
+  } else if (enumMatch) {
+    return buildEnumDisplay(enumMatch);
   } else {
     return buildLegacyDisplay(text);
   }
@@ -306,9 +343,12 @@ const buildFieldDisplay = function (parsedText) {
     let fieldType = parsedText[2] ? parsedText[2].trim() : '';
     let genericType = parsedText[3] ? parseGenericTypes(parsedText[3].trim()) : '';
     let fieldName = parsedText[4] ? parsedText[4].trim() : '';
-    let classifier = parsedText[5] ? parsedText[5].trim() : '';
-
-    displayText = visibility + fieldType + genericType + ' ' + fieldName;
+    let annotation = parsedText[5] ? parsedText[5].trim() : '';
+    let classifier = parsedText[6] ? parsedText[6].trim() : '';
+    displayText = visibility + fieldName + ' : ' + fieldType + genericType;
+    if (annotation) {
+      displayText = displayText + ' ' + annotation;
+    }
     cssStyle = parseClassifier(classifier);
   } catch (err) {
     displayText = parsedText;
@@ -328,10 +368,19 @@ const buildMethodDisplay = function (parsedText) {
     let visibility = parsedText[1] ? parsedText[1].trim() : '';
     let methodName = parsedText[2] ? parsedText[2].trim() : '';
     let parameters = parsedText[3] ? parseGenericTypes(parsedText[3].trim()) : '';
+    if (parameters.indexOf(':') === -1) {
+      parameters = parameters
+        .split(', ')
+        .map((param) => param.split(' ').join(' : '))
+        .join(', ');
+    }
     let classifier = parsedText[4] ? parsedText[4].trim() : '';
     let returnType = parsedText[5] ? ' : ' + parseGenericTypes(parsedText[5]).trim() : '';
-
+    let annotation = parsedText[6] ? parsedText[6].trim() : '';
     displayText = visibility + methodName + '(' + parameters + ')' + returnType;
+    if (annotation) {
+      displayText = displayText + ' ' + annotation;
+    }
     cssStyle = parseClassifier(classifier);
   } catch (err) {
     displayText = parsedText;
@@ -340,6 +389,22 @@ const buildMethodDisplay = function (parsedText) {
   return {
     displayText: displayText,
     cssStyle: cssStyle,
+  };
+};
+
+const buildEnumDisplay = function (parsedText) {
+  let displayText = '';
+
+  try {
+    let enumEntry = parsedText[1] ? parsedText[1].trim() : '';
+    displayText = enumEntry;
+  } catch (err) {
+    displayText = parsedText;
+  }
+
+  return {
+    displayText: displayText,
+    cssStyle: '',
   };
 };
 
